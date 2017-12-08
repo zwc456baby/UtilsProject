@@ -41,12 +41,23 @@ public class DeviceUdp extends RunnableBase {
 
     private WifiManager.MulticastLock UdpLock;
 
+    private int port;
+
     //    public DeviceUdp(String deviceID, Context context) {
 //        this.deviceID = deviceID;
 //        WifiManager manager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
 //        UdpLock = manager.createMulticastLock("_UDP lock");
 //    }
     public DeviceUdp(String deviceID, Context context, DeviceUdpCallback callback) {
+        this.port = Constans.SDAT_SERVER_PORT;
+        this.deviceID = deviceID;
+        this.callback = callback;
+        WifiManager manager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+        UdpLock = manager.createMulticastLock("_UDP lock");
+    }
+
+    public DeviceUdp(int port, String deviceID, Context context, DeviceUdpCallback callback) {
+        this.port = port;
         this.deviceID = deviceID;
         this.callback = callback;
         WifiManager manager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
@@ -128,7 +139,7 @@ public class DeviceUdp extends RunnableBase {
             if (UdpSocket == null) {
                 UdpSocket = new DatagramSocket(null);
                 UdpSocket.setReuseAddress(true);
-                UdpSocket.bind(new InetSocketAddress(Constans.SDAT_SERVER_PORT)); // <-- now bind it
+                UdpSocket.bind(new InetSocketAddress(this.port)); // <-- now bind it
             }
             if (gson == null) gson = new Gson();
             if (receive == null) receive = new byte[Constans.DATA_MAX_LENGTH]; //接收数据的数组

@@ -6,6 +6,7 @@ import java.util.Collection;
 
 /**
  * Created by zhouwenchao on 2017-10-10.
+ *
  */
 public class ArrayUtil {
     private static ArrayUtil instans;

@@ -3,6 +3,9 @@ package com.example.zhouwc.utils;
 import android.app.Activity;
 import android.content.Context;
 import android.os.Build;
+import android.support.annotation.IdRes;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentTransaction;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,22 +14,24 @@ import android.view.WindowManager;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
 
+import java.util.LinkedList;
+
 /**
  * Created by zhouwenchao on 2017-09-20.
  */
-public class LayoutInflaterUtil {
-    private static LayoutInflaterUtil instance;
+public final class LayoutUtil {
+    private static LayoutUtil instance;
 
     private final int progressID = GeneratedID.getID();
 
-    private LayoutInflaterUtil() {
+    private LayoutUtil() {
     }
 
-    public static LayoutInflaterUtil instance() {
+    public static LayoutUtil instance() {
         if (instance == null) {
-            synchronized (LayoutInflaterUtil.class) {
+            synchronized (LayoutUtil.class) {
                 if (instance == null) {
-                    instance = new LayoutInflaterUtil();
+                    instance = new LayoutUtil();
                 }
             }
         }
@@ -70,6 +75,11 @@ public class LayoutInflaterUtil {
         });
     }
 
+    public FragManager getFramManager(@IdRes int layout, LinkedList<Class<? extends Fragment>> fragments,
+                                      android.support.v4.app.FragmentManager fragmentManager) {
+        return new FragManager(layout, fragments, fragmentManager);
+    }
+
 
     public static View Inflater(LayoutInflater inflater, int layoutID, AttachViewCallBack callBack) {
         return instance().inflater(inflater, layoutID, null, false, callBack);
@@ -106,7 +116,7 @@ public class LayoutInflaterUtil {
         return groupView;
     }
 
-    class InflaterRunnable implements Runnable {
+    private final class InflaterRunnable implements Runnable {
         private ViewGroup viewGroup;
         private LayoutInflater inflater;
         private int layouId;
@@ -149,6 +159,98 @@ public class LayoutInflaterUtil {
                     if (attachViewCallBack != null) attachViewCallBack.AttachViewOver(view);
                 }
             });
+        }
+    }
+
+    public final class FragManager {
+        //        private LinkedList<String> stackIndex = new LinkedList<>();
+        private LinkedList<Fragment> isNewList = new LinkedList<>();
+        private LinkedList<Class<? extends Fragment>> fragmentList;
+        private android.support.v4.app.FragmentManager fragmentManager;
+        private int layout;
+        private int cacheCount = 2;
+
+
+        public FragManager(@IdRes int layout, LinkedList<Class<? extends Fragment>> fragments, android.support.v4.app.FragmentManager fragmentManager) {
+            this.layout = layout;
+            fragmentList = fragments;
+            this.fragmentManager = fragmentManager;
+        }
+
+        public void setCacheCount(int count) {
+            if (count > 1) {
+                cacheCount = count;
+            } else {
+                throw new RuntimeException("缓存条目不能小于1");
+            }
+        }
+
+        public boolean showFragment(int index) {
+            Fragment fragment;
+            android.support.v4.app.FragmentManager manager = fragmentManager;
+            removeLastFragment(manager);
+            hideAllFragment(manager);
+        /*添加更多Fragment到此处*/
+//        if (index == 0) {
+//            fragment = getListFragment(MainFragment:: class.java)
+//        }
+//        if (index == 1) {
+//            fragment = getListFragment(BindFaceFragment:: class.java)
+//        }
+            fragment = getListFragment(index);
+        /*结束添加*/
+            if (fragment == null) {
+                Class<? extends Fragment> fragmentClass = fragmentList.get(index);
+                try {
+                    fragment = fragmentClass.newInstance();
+                    Log.v(fragmentClass.getName());
+                    Log.v(fragment.getClass().getName());
+                    isNewList.addFirst(fragment);
+//                    stackIndex.addFirst(fragmentClass.getName());
+                    manager.beginTransaction().add(layout, fragment).commit();
+                    return true;
+                } catch (InstantiationException e) {
+                    Log.e(e);
+                    return false;
+                } catch (IllegalAccessException e) {
+                    Log.e(e);
+                    return false;
+                }
+            } else {
+                if (isNewList.remove(fragment)) {
+                    isNewList.addFirst(fragment);   //将其从列表移除后添加到最前面
+                }
+//                stackIndex.addFirst(fragment.getClass().getName());
+                manager.beginTransaction().show(fragment).commit();
+                return true;
+            }
+        }
+
+
+        private Fragment getListFragment(int index) {
+            Class<? extends Fragment> fragmentClass = fragmentList.get(index);
+            for (Fragment obj : isNewList) {
+                if (obj.getClass().getName().equals(fragmentClass.getName())) {
+                    return obj;
+                }
+            }
+            return null;
+        }
+
+        private void hideAllFragment(android.support.v4.app.FragmentManager manager) {
+            FragmentTransaction transaction = manager.beginTransaction();
+            for (Fragment obj : isNewList) {
+                transaction.hide(obj);
+            }
+            transaction.commit();
+        }
+
+        private void removeLastFragment(android.support.v4.app.FragmentManager manager) {
+            FragmentTransaction transaction = manager.beginTransaction();
+            while (isNewList.size() > cacheCount) {
+                transaction.remove(isNewList.removeLast());
+            }
+            transaction.commit();
         }
     }
 

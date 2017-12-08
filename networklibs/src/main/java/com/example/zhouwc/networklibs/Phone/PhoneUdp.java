@@ -34,7 +34,15 @@ public class PhoneUdp extends RunnableBase {
 
     private SearchListCallBack callBack;
 
+    private int port;
+
     public PhoneUdp(SearchListCallBack searchList) {
+        this.port = Constans.SDAT_SERVER_PORT;
+        this.callBack = searchList;
+    }
+
+    public PhoneUdp(int port, SearchListCallBack searchList) {
+        this.port = port;
         this.callBack = searchList;
     }
 
@@ -48,7 +56,7 @@ public class PhoneUdp extends RunnableBase {
                 byte[] receive = new byte[256];
                 byte[] data;
                 DatagramPacket ReceivePacket = new DatagramPacket(receive, receive.length);
-                ReceivePacket.setPort(Constans.SDAT_SERVER_PORT);
+                ReceivePacket.setPort(this.port);
                 datagramSocket.setSoTimeout(Constans.RECEIVE_TIMEOUT);
                 dataJson.setExcludeDevice(deviceList); //重置排除列表
                 send = gson.toJson(dataJson).getBytes(Constans.CODEC);
@@ -57,7 +65,7 @@ public class PhoneUdp extends RunnableBase {
                         new DatagramPacket(EncryptedSend,
                                 EncryptedSend.length,
                                 InetAddress.getByName(Constans.UDP_BROADCAST_ADDR),
-                                Constans.SDAT_SERVER_PORT);       /* 查找device端的固定端口号 */
+                                this.port);       /* 查找device端的固定端口号 */
                 datagramSocket.send(SendPacket);
                 datagramSocket.receive(ReceivePacket);
                 data = decryption_1(ReceivePacket.getData(), ReceivePacket.getLength());

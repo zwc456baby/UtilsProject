@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
+import android.graphics.PixelFormat;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.DisplayMetrics;
@@ -30,8 +31,36 @@ public class ImageUtil {
     }
 
     public static Bitmap drawableToBitmap(Drawable drawable) {
-        BitmapDrawable bd = (BitmapDrawable) drawable;
-        return bd.getBitmap();
+        if (drawable instanceof BitmapDrawable) {
+            BitmapDrawable bd = (BitmapDrawable) drawable;
+            return bd.getBitmap();
+        }
+
+        // 取 drawable 的长宽
+        int w = drawable.getIntrinsicWidth();
+        int h = drawable.getIntrinsicHeight();
+        if (w <= 0 || h <= 0) {
+            w = drawable.getBounds().width();
+            h = drawable.getBounds().height();
+        }
+        return drawableToBitmap(drawable, w, h);
+    }
+
+    public static Bitmap drawableToBitmap(Drawable drawable, int w, int h) {
+        if (w <= 0 || h <= 0) {
+            return null;
+        }
+        // 取 drawable 的颜色格式
+        Bitmap.Config config = drawable.getOpacity() != PixelFormat.OPAQUE ? Bitmap.Config.ARGB_8888
+                : Bitmap.Config.RGB_565;
+        // 建立对应 bitmap
+        Bitmap bitmap = Bitmap.createBitmap(w, h, config);
+        // 建立对应 bitmap 的画布
+        Canvas canvas = new Canvas(bitmap);
+        drawable.setBounds(0, 0, w, h);
+        // 把 drawable 内容画到画布中
+        drawable.draw(canvas);
+        return bitmap;
     }
 
 
@@ -43,7 +72,7 @@ public class ImageUtil {
         BitmapFactory.decodeResource(res, resId, options);
 
         // 调用上面定义的方法计算inSampleSize值
-        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
+        options.inSampleSize = Math.round(calculateInSampleSize(options, reqWidth, reqHeight));
         // 使用获取到的inSampleSize值再次解析图片
         options.inJustDecodeBounds = false;
         return BitmapFactory.decodeResource(res, resId, options);
@@ -70,7 +99,7 @@ public class ImageUtil {
         BitmapFactory.decodeFile(path, options);
 
         // 调用上面定义的方法计算inSampleSize值
-        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
+        options.inSampleSize = Math.round(calculateInSampleSize(options, reqWidth, reqHeight));
 //        options.inJustDecodeBounds = true;
 //        // 调用上面定义的方法计算inSampleSize值
 //        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
@@ -157,6 +186,7 @@ public class ImageUtil {
         int width = origin.getWidth();
         float scaleWidth = ArithUtil.div(newWidth, width);
         float scaleHeight = ArithUtil.div(newHeight, height);
+        if (scaleWidth == 1 && scaleHeight == 1) return origin;
         Matrix matrix = new Matrix();
         matrix.postScale(scaleWidth, scaleHeight);// 使用后乘
         Bitmap newBM = Bitmap.createBitmap(origin, 0, 0, width, height, matrix, false);
@@ -166,26 +196,53 @@ public class ImageUtil {
         return newBM;
     }
 
+    /**
+     * 按照比例缩放 bitmap
+     *
+     * @param origin
+     * @param newWidth
+     * @param newHeight
+     * @return
+     */
+    public static Bitmap proportionScaleBitmap(Bitmap origin, int newWidth, int newHeight) {
+        if (origin == null) {
+            return null;
+        }
+        int height = origin.getHeight();
+        int width = origin.getWidth();
+//        float scaleProportion = calculateInSampleSize(width, height, newWidth, newHeight);
+        float scaleWidth = ArithUtil.div(newWidth, width);
+        float scaleHeight = ArithUtil.div(newHeight, height);
+        float scaleProportion = scaleHeight < scaleWidth ? scaleHeight : scaleWidth;
+        if (scaleProportion == 1) return origin;
+        Matrix matrix = new Matrix();
+        matrix.postScale(scaleProportion, scaleProportion);// 使用后乘
+        Bitmap newBM = Bitmap.createBitmap(origin, 0, 0, width, height, matrix, false);
+        if (!origin.isRecycled()) {
+            origin.recycle();
+        }
+        return newBM;
+    }
 
-    private static int calculateInSampleSize(BitmapFactory.Options options,
-                                             int reqWidth, int reqHeight) {
+    private static float calculateInSampleSize(BitmapFactory.Options options,
+                                               int reqWidth, int reqHeight) {
         // 源图片的高度和宽度
         final int height = options.outHeight;
         final int width = options.outWidth;
-        int inSampleSize = 1;
-        if (height > reqHeight || width > reqWidth) {
+        return calculateInSampleSize(width, height, reqWidth, reqHeight);
+    }
+
+    private static float calculateInSampleSize(int outWidth, int outHeight,
+                                               int reqWidth, int reqHeight) {
+        // 源图片的高度和宽度
+        float inSampleSize = 1;
+        if (outHeight > reqHeight || outWidth > reqWidth) {
             // 计算出实际宽高和目标宽高的比率
-            final int heightRatio = Math.round(ArithUtil.div(height, reqHeight));
-            final int widthRatio = Math.round(ArithUtil.div(width, reqHeight));
+            float heightRatio = ArithUtil.div(outHeight, reqHeight);
+            float widthRatio = ArithUtil.div(outWidth, reqWidth);
             // 选择宽和高中最小的比率作为inSampleSize的值，这样可以保证最终图片的宽和高
             // 一定都会大于等于目标的宽和高。
             inSampleSize = heightRatio < widthRatio ? heightRatio : widthRatio;
-        }
-        Runtime runtime = Runtime.getRuntime();
-        long memory = runtime.maxMemory() - runtime.totalMemory();
-
-        while (((height * width) * 4) / inSampleSize > memory) {
-            inSampleSize++;
         }
         return inSampleSize;
     }
@@ -198,6 +255,7 @@ public class ImageUtil {
      * @return
      */
     public static ImageSize getImageViewWidth(View imageView) {
+        if (imageView == null) return null;
         ImageSize imageSize = new ImageSize();
         final DisplayMetrics displayMetrics = imageView.getContext()
                 .getResources().getDisplayMetrics();
@@ -228,6 +286,9 @@ public class ImageUtil {
         // parameter
         if (height <= 0)
             height = displayMetrics.heightPixels;
+
+        if (width <= 0 || height <= 0) return null;
+
         imageSize.width = width;
         imageSize.height = height;
 
@@ -235,8 +296,8 @@ public class ImageUtil {
     }
 
     public static class ImageSize {
-        int width;
-        int height;
+        public int width;
+        public int height;
     }
 
     /**
@@ -270,7 +331,7 @@ public class ImageUtil {
      * @return 合成后的图片
      */
     public static Bitmap toConformBitmap(Bitmap background, Bitmap foreground, int startX, int startY) {
-        if (background == null) {
+        if (background == null || foreground == null) {
             return null;
         }
         int bgWidth = background.getWidth();
@@ -321,70 +382,92 @@ public class ImageUtil {
         return newbmp;
     }
 
-    private static LinkedList<LoadImgEntity> mTasks = null;
+    private static PoolLoadImageRunnable runnable = null;
 
-    public static void LoadImage(String path, View view, LoadImageImpl impl) {
-        synchronized (ImageUtil.class) {
-            if (mTasks == null) {
-                mTasks = new LinkedList<>();
-                mTasks.addFirst(new LoadImgEntity(path, view, impl));
-                ThreadUtils.execute(getPoolLoadImageRunnable());
+    public static void LoadImage(String path, Object view, LoadImageImpl impl) {
+        synchronized (PoolLoadImageRunnable.class) {
+            if (runnable == null) {
+                ThreadUtils.execute(runnable = new PoolLoadImageRunnable());
             } else {
-                mTasks.addFirst(new LoadImgEntity(path, view, impl));
+                runnable.addImageLoadEntity(new LoadImgEntity(path, view, impl));
             }
         }
     }
 
-    private static Runnable getPoolLoadImageRunnable() {
-        return new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    if (mTasks == null) return;
-                    if (mTasks.size() == 0) {
-                        ThreadUtils.sleep(30);
-                        synchronized (ImageUtil.class) {
-                            if (mTasks.size() == 0) {
-                                mTasks = null;
-                                return;
-                            }
-                        }
-                    } else {
-                        try {
-                            final LoadImgEntity loadImgEntity = mTasks.removeFirst();
-                            if (loadImgEntity != null) {
-                                final Bitmap bitmap = loadImgEntity.loadImageImpl.getBitmap(loadImgEntity.path, loadImgEntity.imageView);
-                                ThreadUtils.post(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        loadImgEntity.loadImageImpl.Load(loadImgEntity.imageView, loadImgEntity.path, bitmap);
-                                    }
-                                });
+    private static final class PoolLoadImageRunnable implements Runnable {
+        private boolean isExit = false;
+        private LinkedList<LoadImgEntity> mTasks = new LinkedList<>();
 
-                            }
-                        } catch (Exception e) {
+        private void clear() {
+            runnable = null;
+            isExit = true;
+            mTasks.clear();
+            mTasks = null;
+        }
+
+        private void addImageLoadEntity(LoadImgEntity entity) {
+            if (isExit) return;
+            synchronized (PoolLoadImageRunnable.class) {
+                mTasks.addLast(entity);
+            }
+        }
+
+        @Override
+        public void run() {
+            while (!isExit) {
+                if (mTasks == null) return;
+                if (mTasks.size() == 0) {
+                    ThreadUtils.sleep(100);
+                    synchronized (PoolLoadImageRunnable.class) {
+                        if (mTasks.size() == 0) {
+                            clear();
+                            return;
                         }
+                    }
+                } else {
+                    try {
+                        final LoadImgEntity loadImgEntity = mTasks.removeFirst();
+                        if (loadImgEntity != null) {
+                            final Bitmap bitmap = loadImgEntity.loadImageImpl.getBitmap(loadImgEntity.path, loadImgEntity.imageView);
+                            ThreadUtils.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    loadImgEntity.loadImageImpl.Load(loadImgEntity.imageView, loadImgEntity.path, bitmap);
+                                }
+                            });
+
+                        }
+                    } catch (Exception e) {
                     }
                 }
             }
-        };
+        }
     }
 
+//    private static Runnable getPoolLoadImageRunnable() {
+//        return new Runnable() {
+//            @Override
+//            public void run() {
+//
+//            }
+//        };
+//    }
+
     private static class LoadImgEntity {
-        private LoadImgEntity(String path, View imageView, LoadImageImpl impl) {
+        private LoadImgEntity(String path, Object imageView, LoadImageImpl impl) {
             this.path = path;
             this.imageView = imageView;
             this.loadImageImpl = impl;
         }
 
         String path;
-        View imageView;
+        Object imageView;
         LoadImageImpl loadImageImpl;
     }
 
     public interface LoadImageImpl {
-        Bitmap getBitmap(String path, View view);
+        Bitmap getBitmap(String path, Object view);
 
-        void Load(View view, String path, Bitmap bitmap);
+        void Load(Object view, String path, Bitmap bitmap);
     }
 }

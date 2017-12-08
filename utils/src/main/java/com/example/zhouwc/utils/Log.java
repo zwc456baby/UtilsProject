@@ -1,14 +1,20 @@
 package com.example.zhouwc.utils;
 
+import android.annotation.SuppressLint;
+import android.app.Application;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
 import android.os.Message;
+import android.support.annotation.NonNull;
 import android.text.TextUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.lang.annotation.Retention;
@@ -17,11 +23,16 @@ import java.lang.annotation.Target;
 import java.lang.ref.Reference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,7 +52,7 @@ import static java.lang.annotation.RetentionPolicy.SOURCE;
 
 
 /**
- * Created by hasee on 2017/6/9.
+ * Created by zhouwenchao on 2017/6/9.
  * 入口类
  */
 public final class Log {
@@ -54,7 +65,7 @@ public final class Log {
     /**
      * 选项配置
      *
-     * @return
+     * @return 配置类
      */
     public static LogConfig getLogConfig() {
         return logConfig;
@@ -92,7 +103,7 @@ public final class Log {
     /**
      * 打印json
      *
-     * @param json
+     * @param json json数据
      */
     public static void json(String json) {
         printer.json(json);
@@ -101,7 +112,7 @@ public final class Log {
     /**
      * 输出xml
      *
-     * @param xml
+     * @param xml xml数据
      */
     public static void xml(String xml) {
         printer.xml(xml);
@@ -147,7 +158,7 @@ public final class Log {
     /**
      * 打印json
      *
-     * @param json
+     * @param json json数据
      */
     public static void json(String tag, String json) {
         printer.setTag(tag).json(json);
@@ -156,7 +167,7 @@ public final class Log {
     /**
      * 输出xml
      *
-     * @param xml
+     * @param xml xml 数据
      */
     public static void xml(String tag, String xml) {
         printer.setTag(tag).xml(xml);
@@ -180,10 +191,10 @@ public final class Log {
         /**
          * 设置临时tag
          *
-         * @param tag
-         * @return
+         * @param tag 临时tag
+         * @return 返回打印类
          */
-        public Printer setTag(String tag) {
+        private Printer setTag(String tag) {
             if (!TextUtils.isEmpty(tag) && mLogConfig.isEnable()) {
                 localTags.set(tag);
             }
@@ -423,13 +434,13 @@ public final class Log {
      */
     private static final class LogConfigImpl implements LogConfig {
 
-        private boolean enable = true;
+        private boolean enable = appIsDebug();
         private String tagPrefix;
         @LogLevel.LogLevelType
         private int logLevel = LogLevel.TYPE_VERBOSE;
         private List<Parser> parseList;
         private static LogConfigImpl singleton;
-        private boolean savaLog = false;
+        private boolean savaLog = enable;
 
         private LogConfigImpl() {
             parseList = new ArrayList<Parser>();
@@ -465,8 +476,9 @@ public final class Log {
             return this;
         }
 
+        @SafeVarargs
         @Override
-        public LogConfig addParserClass(Class<? extends Parser>... classes) {
+        public final LogConfig addParserClass(Class<? extends Parser>... classes) {
             // TODO: 16/3/12 判断解析类的继承关系
             for (Class<? extends Parser> cla : classes) {
                 try {
@@ -478,22 +490,73 @@ public final class Log {
             return this;
         }
 
-        public boolean isSavaLog() {
+
+        private boolean isSavaLog() {
             return savaLog;
         }
+
+//        public String getLogFilePath() {
+//            return logFilePath;
+//        }
 
         @Override
         public LogConfig savaLogFile(boolean sava) {
             this.savaLog = sava;
+
             return this;
         }
 
+        @Override
+        public LogConfig setLogFileDir(String logFilePath) {
+//            this.logFilePath = logFilePath;
+            if (TextUtils.isEmpty(logFilePath)) return this;
+            if (LogPrint.isInstance()) {
+                LogPrint.clear();
+            }
+            LogPrint.getInstance().setLogDir(logFilePath);
+//            if (!TextUtils.isEmpty(logFilePath)) {
+//                LogPrint.getInstance(logFilePath);
+//            }
+            return this;
+        }
 
-        public boolean isEnable() {
+        /**
+         * 返回应用是否处于debug模式
+         * 如果反射应用状态失败，则使用自身的BuildConfig数据
+         *
+         * @return app是否处于debug模式
+         */
+        @Override
+        public boolean appIsDebug() {
+            Application application = getAppLication();
+            if (application == null) return BuildConfig.DEBUG;
+            ApplicationInfo info = application.getApplicationInfo();
+            return (info.flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        }
+
+        private Application getAppLication() {
+            try {
+                @SuppressLint("PrivateApi")
+                Application application = (Application) Class.forName("android.app.ActivityThread")
+                        .getMethod("currentApplication").invoke(null, (Object[]) null);
+                return application;
+            } catch (Exception e) {
+                try {
+                    @SuppressLint("PrivateApi")
+                    Application application = (Application) Class.forName("android.app.AppGlobals").
+                            getMethod("getInitialApplication").invoke(null, (Object[]) null);
+                    return application;
+                } catch (Exception e2) {
+                    return null;
+                }
+            }
+        }
+
+        private boolean isEnable() {
             return enable;
         }
 
-        public String getTagPrefix() {
+        private String getTagPrefix() {
             if (TextUtils.isEmpty(tagPrefix)) {
                 return "LogUtils";
             }
@@ -502,11 +565,11 @@ public final class Log {
         }
 
 
-        public int getLogLevel() {
+        private int getLogLevel() {
             return logLevel;
         }
 
-        public List<Parser> getParseList() {
+        private List<Parser> getParseList() {
             return parseList;
         }
 
@@ -520,23 +583,23 @@ public final class Log {
      */
     private static final class Constant {
 
-        public static final String STRING_OBJECT_NULL = "Object[object is null]";
+        private static final String STRING_OBJECT_NULL = "Object[object is null]";
 
         // 每行最大日志长度
-        public static final int LINE_MAX = 1024 * 3;
+        private static final int LINE_MAX = 1024 * 3;
 
         // 解析属性最大层级
         /*最大层级只能是1 否则如果层级大于2  数组 1 引用数组 2 ，数组 2 又引用数组1 会导致无限循环*/
-        public static final int MAX_CHILD_LEVEL = 1;
+        private static final int MAX_CHILD_LEVEL = 1;
 
-        public static final int MIN_STACK_OFFSET = 5;
+        private static final int MIN_STACK_OFFSET = 5;
 
         // 换行符
-        public static final String BR = System.getProperty("line.separator");
+        private static final String BR = System.getProperty("line.separator");
 
 
         // 默认支持解析库
-        public static final Class<? extends Parser>[] DEFAULT_PARSE_CLASS = new Class[]{
+        private static final Class[] DEFAULT_PARSE_CLASS = new Class[]{
                 BundleParse.class, IntentParse.class, CollectionParse.class,
                 MapParse.class, ThrowableParse.class, ReferenceParse.class, MessageParse.class
         };
@@ -545,9 +608,9 @@ public final class Log {
         /**
          * 获取默认解析类
          *
-         * @return
+         * @return 返回默认揭西裤
          */
-        public static List<Parser> getParsers() {
+        private static List<Parser> getParsers() {
             return LogConfigImpl.getInstance().getParseList();
         }
     }
@@ -566,7 +629,7 @@ public final class Log {
          * @param object
          * @return
          */
-        public static String objectToString(Object object) {
+        private static String objectToString(Object object) {
             return objectToString(object, 0);
         }
 
@@ -576,7 +639,7 @@ public final class Log {
          * @param cla
          * @return
          */
-        public static boolean isStaticInnerClass(Class cla) {
+        private static boolean isStaticInnerClass(Class cla) {
             if (cla != null && cla.isMemberClass()) {
                 int modifiers = cla.getModifiers();
                 if ((modifiers & Modifier.STATIC) == Modifier.STATIC) {
@@ -586,7 +649,7 @@ public final class Log {
             return false;
         }
 
-        public static String objectToString(Object object, int childLevel) {
+        private static String objectToString(Object object, int childLevel) {
             if (object == null) {
                 return Constant.STRING_OBJECT_NULL;
             }
@@ -729,7 +792,7 @@ public final class Log {
          * @param object
          * @return
          */
-        public static int getArrayDimension(Object object) {
+        private static int getArrayDimension(Object object) {
             int dim = 0;
             for (int i = 0; i < object.toString().length(); ++i) {
                 if (object.toString().charAt(i) == '[') {
@@ -747,7 +810,7 @@ public final class Log {
          * @param object object
          * @return 是否为数组
          */
-        public static boolean isArray(Object object) {
+        private static boolean isArray(Object object) {
             return object.getClass().isArray();
         }
 
@@ -757,7 +820,7 @@ public final class Log {
          * @param object 如L为int型
          * @return
          */
-        public static char getType(Object object) {
+        private static char getType(Object object) {
             if (isArray(object)) {
                 String str = object.toString();
                 return str.substring(str.lastIndexOf("[") + 1, str.lastIndexOf("[") + 2).charAt(0);
@@ -832,7 +895,7 @@ public final class Log {
          * @param array 数组
          * @return 字符串
          */
-        public static String parseArray(Object array) {
+        private static String parseArray(Object array) {
             StringBuilder result = new StringBuilder();
             traverseArray(result, array);
             return result.toString();
@@ -857,6 +920,10 @@ public final class Log {
         LogConfig addParserClass(Class<? extends Parser>... classes);
 
         LogConfig savaLogFile(boolean sava);
+
+        LogConfig setLogFileDir(String logFilePath);
+
+        boolean appIsDebug();
 
     }
 
@@ -975,6 +1042,7 @@ public final class Log {
             return Collection.class;
         }
 
+        @SuppressLint("DefaultLocale")
         @Override
         public String parseString(Collection collection) {
             String simpleName = collection.getClass().getName();
@@ -1003,8 +1071,8 @@ public final class Log {
      * Created by pengwei on 16/3/8.
      */
     static final class IntentParse implements Parser<Intent> {
-
-        private Map<Integer, String> flagMap = new HashMap();
+        @SuppressLint("UseSparseArrays")
+        private Map<Integer, String> flagMap = new HashMap<>();
 
         {
             Class cla = Intent.class;
@@ -1016,7 +1084,7 @@ public final class Log {
                     try {
                         Object object = field.get(cla);
                         if (object instanceof Integer || object.getClass().getSimpleName().equals("int")) {
-                            value = (Integer) object;
+                            value = (int) object;
                         }
                     } catch (Exception e) {
                         e.printStackTrace();
@@ -1046,7 +1114,8 @@ public final class Log {
             builder.append(String.format("%s = %s" + LINE_SEPARATOR, "Categories", intent.getCategories()));
             builder.append(String.format("%s = %s" + LINE_SEPARATOR, "Extras",
                     new BundleParse().parseString(intent.getExtras())));
-            return builder.toString() + "]";
+            builder.append("]");
+            return builder.toString();
         }
 
         /**
@@ -1084,7 +1153,7 @@ public final class Log {
 
         @Override
         public String parseString(Map map) {
-            String msg = map.getClass().getName() + " [" + LINE_SEPARATOR;
+            StringBuilder msg = new StringBuilder(map.getClass().getName() + " [" + LINE_SEPARATOR);
             Set keys = map.keySet();
             for (Object key : keys) {
                 String itemString = "%s -> %s" + LINE_SEPARATOR;
@@ -1096,8 +1165,8 @@ public final class Log {
                         value = "\'" + value + "\'";
                     }
                 }
-                msg += String.format(itemString, ObjectUtil.objectToString(key),
-                        ObjectUtil.objectToString(value));
+                msg.append(String.format(itemString, ObjectUtil.objectToString(key),
+                        ObjectUtil.objectToString(value)));
             }
             return msg + "]";
         }
@@ -1119,17 +1188,18 @@ public final class Log {
             if (message == null) {
                 return null;
             }
-            StringBuilder stringBuilder = new StringBuilder(message.getClass().getName() + " [" + LINE_SEPARATOR);
-            stringBuilder.append(String.format("%s = %s", "what", message.what)).append(LINE_SEPARATOR);
-            stringBuilder.append(String.format("%s = %s", "when", message.getWhen())).append(LINE_SEPARATOR);
-            stringBuilder.append(String.format("%s = %s", "arg1", message.arg1)).append(LINE_SEPARATOR);
-            stringBuilder.append(String.format("%s = %s", "arg2", message.arg2)).append(LINE_SEPARATOR);
-            stringBuilder.append(String.format("%s = %s", "data",
-                    new BundleParse().parseString(message.getData()))).append(LINE_SEPARATOR);
-            stringBuilder.append(String.format("%s = %s", "obj",
-                    ObjectUtil.objectToString(message.obj))).append(LINE_SEPARATOR);
-            stringBuilder.append("]");
-            return stringBuilder.toString();
+            String stringBuilder = message.getClass().getName() + " [" + LINE_SEPARATOR + String.format("%s = %s", "what", message.what) + LINE_SEPARATOR +
+                    String.format("%s = %s", "when", message.getWhen()) + LINE_SEPARATOR +
+                    String.format("%s = %s", "arg1", message.arg1) + LINE_SEPARATOR +
+                    String.format("%s = %s", "arg2", message.arg2) + LINE_SEPARATOR +
+                    String.format("%s = %s", "data",
+                            new BundleParse().parseString(message.getData())) +
+                    LINE_SEPARATOR +
+                    String.format("%s = %s", "obj",
+                            ObjectUtil.objectToString(message.obj)) +
+                    LINE_SEPARATOR +
+                    "]";
+            return stringBuilder;
         }
     }
 
@@ -1146,10 +1216,9 @@ public final class Log {
         @Override
         public String parseString(Reference reference) {
             Object actual = reference.get();
-            StringBuilder builder = new StringBuilder(reference.getClass().getSimpleName());
-            builder.append("<").append(actual.getClass().getSimpleName()).append("> {");
-            builder.append("→").append(ObjectUtil.objectToString(actual));
-            return builder.toString() + "}";
+            String builder = reference.getClass().getSimpleName() + "<" + actual.getClass().getSimpleName() + "> {" +
+                    "→" + ObjectUtil.objectToString(actual);
+            return builder + "}";
         }
     }
 
@@ -1165,6 +1234,339 @@ public final class Log {
         @Override
         public String parseString(Throwable throwable) {
             return android.util.Log.getStackTraceString(throwable);
+        }
+    }
+
+    private static class LogPrint implements Runnable {
+        private final LinkedList<LogEntity> logCache = new LinkedList<>();
+
+        private FileOutputStream outStream = null;
+        private final Object obj = new Object();
+        private static LogPrint logclass;
+        private long currentFileTime = 0;
+        private final long newFileTime = 86400000;
+        private String dayType = "yyyy-MM-dd";
+        private SimpleDateFormat day = new SimpleDateFormat(dayType);
+
+        private static String LogDir = FileUtils.rootDir + File.separator + "LogUtilsFile" + File.separator;
+        private static final long MaxFileSize = 100 * 1024 * 1024;  /*100MB*/
+        private Calendar c = Calendar.getInstance();
+        private File currentLogFile;
+        //    private String timeTitle;
+        private static final String enter = "\n";
+        private static final String separator = File.separator;
+        private static final String speter = " ";
+
+        private boolean isExit = false;
+
+        private boolean isWait = false;
+
+//    private byte[] errorLog;
+
+        private LogPrint() {
+//        InitStream();
+
+            ThreadUtils.execute(this);
+        }
+
+        private static LogPrint getInstance() {
+            if (logclass == null) {
+                synchronized (LogPrint.class) {
+                    if (logclass == null) {
+                        logclass = new LogPrint();
+                    }
+                }
+            }
+            return logclass;
+        }
+
+        private void setLogDir(String path) {
+            LogDir = path;
+        }
+
+        private static boolean isInstance() {
+            return logclass != null;
+        }
+
+        private static void clear() {
+            synchronized (LogPrint.class) {
+                if (isInstance()) {
+                    logclass.flushCache();
+                    logclass.isExit = true;
+                    logclass.closeOutPutStream(); //如果需要,则关闭当前文件流
+                    logclass.threadStart();
+                    logclass = null;
+                }
+            }
+        }
+
+        private void InitStream() {
+            if (JudgeNewStream()) {  //循环判断是否需要创建新的文件流
+                synchronized (obj) {
+                    if (JudgeNewStream()) {
+                        closeOutPutStream(); //如果需要,则关闭当前文件流
+                        outStream = newOutPutStream();  //重新创建文件流
+                    }
+                }
+            }
+        }
+
+        private void addOnlineLog(int level, @NonNull String tag, @NonNull String msg) {
+            logCache.addLast(new LogPrint.LogEntity(System.currentTimeMillis(), level, tag, msg));
+            threadStart();
+        }
+
+
+        private void savaLineLog(byte[] logs) {
+            try {
+                InitStream();
+                if (outStream != null) {
+                    outStream.write(logs);
+                    outStream.flush();
+                }
+            } catch (Exception e) {
+                System.out.println("保存一条Log日志失败：" + new String(logs));
+            }
+        }
+
+        private synchronized FileOutputStream newOutPutStream() {
+            c.setTimeInMillis(System.currentTimeMillis());
+            String createfileTime = day.format(c.getTime());
+            currentFileTime = stringToLong(createfileTime);
+//        boolean hasSDCard = Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED);
+            if (!FileUtils.instans().hasRootDirPermmiss()) return null;
+            try {
+                deleteFiles(LogDir, 7, 0);
+//                String filePath = LogDir + ;
+                currentLogFile = new File(LogDir, createfileTime + "Log.txt");
+                if (!currentLogFile.exists()) {
+                    File dir = new File(currentLogFile.getParent());
+                    createDir(dir);
+                    if (!currentLogFile.createNewFile()) {
+                        return null;
+                    }
+                }
+                if (currentLogFile.isDirectory()) {
+                    FileUtils.instans().deleteDirFileSafely(currentLogFile);
+                    if (!currentLogFile.createNewFile()) {
+                        return null;
+                    }
+                }
+                return new FileOutputStream(currentLogFile, true);  //追加模式
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+
+        private boolean JudgeNewStream() {
+            return currentFileTime < (System.currentTimeMillis() - newFileTime) || outStream == null || JudgeLogFileState();
+        }
+
+        private boolean JudgeLogFileState() {
+            return currentLogFile == null || !currentLogFile.exists() || currentLogFile != null && currentLogFile.length() > MaxFileSize;
+        }
+
+        private void closeOutPutStream() {
+            synchronized (obj) {
+                if (outStream != null) {
+                    try {
+                        outStream.flush();
+                        outStream.close();
+                    } catch (Exception ignored) {
+                    } finally {
+                        outStream = null;
+                    }
+                }
+            }
+        }
+
+        private void deleteFiles(String path, int day, long allFileSize) {
+            File dir = new File(path);
+            if (dir.exists() && dir.isDirectory()) {
+                File[] files = dir.listFiles();
+                if (files == null || files.length == 0) {
+                    return;
+                }
+                for (File file : files) {
+                    if (file.isDirectory()) {
+                        deleteFiles(file.getAbsolutePath(), day, allFileSize);
+                        FileUtils.instans().deleteDirFileSafely(file);
+
+                    } else if (file.isFile() && file.lastModified() < System.currentTimeMillis() - (newFileTime * day)) {
+                        FileUtils.instans().deleteDirFileSafely(file);
+                    } else {
+                        allFileSize += file.length();
+                    }
+                }
+                if (allFileSize > MaxFileSize) {  //限定总文件大小为100Mb
+                    deleteFiles(path, --day, 0);
+                }
+            }
+        }
+
+        private void createDir(File dir) {
+            if (dir == null) return;
+            if (!dir.exists()) {
+                dir.mkdirs();
+            } else if (dir.isFile()) {
+                FileUtils.instans().deleteDirFileSafely(dir);
+//            deleteFileSafely(dir);
+                dir.mkdirs();
+            }
+        }
+
+        private long stringToLong(String strTime) {
+            Date date = stringToDate(strTime, dayType); // String类型转成date类型
+            if (date == null) {
+                return 0;
+            } else {
+                return date.getTime();
+            }
+        }
+
+        private Date stringToDate(String strTime, String formatType) {
+            SimpleDateFormat formatter = new SimpleDateFormat(formatType);
+            Date date = null;
+            try {
+                date = formatter.parse(strTime);
+            } catch (ParseException ignored) {
+            }
+            return date;
+        }
+
+        @Override
+        public void run() {
+            while (!isExit) {
+                if (logCache.size() > 0) {
+                    flushCache();
+                } else {
+                    sleepThread();
+                }
+            }
+        }
+
+        private void flushCache() {
+            synchronized (obj) {
+                while (logCache.size() > 0) {
+                    LogPrint.LogEntity entity = null;
+                    try {
+                        entity = logCache.removeFirst();
+                    } catch (Exception ignored) {
+                    }
+                    if (entity == null) {
+                        continue;
+                    }
+                    if (logCache.size() > 1000) {  /*当缓存数据大于一千条，不保存info等级以下的信息*/
+                        if (entity.getLevel() < Log.LogLevel.TYPE_INFO) {
+                            continue;
+                        }
+                    }
+                    if (logCache.size() > 5000) {/*当缓存数据大于五千条，不保存异常等级以下的信息*/
+                        if (entity.getLevel() < Log.LogLevel.TYPE_ERROR) {
+                            continue;
+                        }
+                    }
+                    if (logCache.size() > 10000) { /*当缓存数据大于一万时，完全清空缓存*/
+                        logCache.clear();
+                    }
+                    c.setTimeInMillis(entity.getTime());
+                    String stringBuilder = String.valueOf(c.get(Calendar.YEAR)) + "/" +
+                            (c.get(Calendar.MONTH) + 1) + "/" +
+                            c.get(Calendar.DATE) + " " +
+                            c.get(Calendar.HOUR_OF_DAY) + ":" +
+                            c.get(Calendar.MINUTE) + ":" +
+                            c.get(Calendar.SECOND) + ":" +
+                            c.get(Calendar.MILLISECOND) + separator +
+                            getLevel(entity.getLevel()) + separator +
+                            entity.getTag() + speter +
+                            entity.getMsg() + enter;
+                    //                String logs = timeTitle + + + + + + +;
+                    savaLineLog(stringBuilder.getBytes());
+                }
+            }
+        }
+
+        private void sleepThread() {
+            synchronized (obj) {
+                isWait = true;
+                try {
+                    if (logCache.size() == 0) {
+                        obj.wait();
+                    }
+                } catch (Exception ignored) {
+                } finally {
+                    isWait = false;
+                }
+            }
+        }
+
+        private void threadStart() {
+            if (isWait) {
+                synchronized (obj) {
+                    try {
+                        obj.notifyAll();
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
+
+        private String getLevel(int level) {
+            String leve;
+            switch (level) {
+                case Log.LogLevel.TYPE_VERBOSE:
+                    leve = "V";
+                    break;
+                case Log.LogLevel.TYPE_DEBUG:
+                    leve = "D";
+                    break;
+                case Log.LogLevel.TYPE_INFO:
+                    leve = "I";
+                    break;
+                case Log.LogLevel.TYPE_WARM:
+                    leve = "W";
+                    break;
+                case Log.LogLevel.TYPE_ERROR:
+                    leve = "E";
+                    break;
+                case Log.LogLevel.TYPE_WTF:
+                    leve = "WTF";
+                    break;
+                default:
+                    leve = "V";
+                    break;
+            }
+            return leve;
+        }
+
+        private class LogEntity {
+            long time;
+            int level;
+            String tag;
+            String msg;
+
+            private LogEntity(long time, int level, String tag, String msg) {
+                this.time = time;
+                this.level = level;
+                this.tag = tag;
+                this.msg = msg;
+            }
+
+            private long getTime() {
+                return time;
+            }
+
+            private int getLevel() {
+                return level;
+            }
+
+            private String getTag() {
+                return tag;
+            }
+
+            private String getMsg() {
+                return msg;
+            }
         }
     }
 }

@@ -22,8 +22,7 @@ import android.graphics.Canvas;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.os.Environment;
-import android.util.Base64;
+import android.text.TextUtils;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -41,7 +40,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.RandomAccessFile;
 import java.io.Serializable;
-import java.security.SecureRandom;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,16 +48,13 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-
 /**
  * 缓存的数据时间是以秒为单位计算的
  *
- * @author Michael Yang（www.yangfuhai.com�?update at 2013.08.07
+ * @author 创建于2013
+ *         <p>
+ *         修改于2017.10月
+ *         zhouwenchao
  */
 public class ACache {
     public static final int TIME_HOUR = 60 * 60;
@@ -68,11 +63,20 @@ public class ACache {
     private static final int MAX_COUNT = Integer.MAX_VALUE; // 不限制存放数据的数量
     private static final Map<String, ACache> mInstanceMap = new HashMap();
     private ACacheManager mCache;
-    private static final String defaultCacheFilePath = Environment.getExternalStorageDirectory() + File.separator + ".ACache" + File.separator + "config";
+    //    private static String defaultCacheFilePath = Environment.getExternalStorageDirectory() + File.separator + ".ACache" + File.separator + "config";
+    private static String defaultCacheFilePath;
 
     //**************        增加自定义静态方法    *****************//
     public static ACache get() {
+        if (TextUtils.isEmpty(defaultCacheFilePath))
+            throw new NullPointerException("please init default dir");
         return get(new File(defaultCacheFilePath));  //如果没指定就使用sd卡的Acache目录
+    }
+
+    public static ACache setDefaultDir(String path) {
+        if (!TextUtils.isEmpty(path))
+            defaultCacheFilePath = path;
+        return get();
     }
 
     public static String getString(String key) {
@@ -202,6 +206,10 @@ public class ACache {
             throw new RuntimeException("can't make dirs in "
                     + cacheDir.getAbsolutePath());
         }
+        if (!cacheDir.canRead() || !cacheDir.canWrite()) {
+            throw new RuntimeException("can't read or write file "
+                    + cacheDir.getAbsolutePath());
+        }
         mCache = new ACacheManager(cacheDir, max_size, max_count);
     }
 
@@ -250,7 +258,7 @@ public class ACache {
     /**
      * 读取 String数据
      *
-     * @param key
+     * @param key key
      * @return String 数据
      */
     public String getAsString(String key) {
@@ -1029,7 +1037,7 @@ public class ACache {
 * 加密
 */
     private String encrypt(String clear) {
-        if (clear == null || clear.length() == 0) return null;
+        if (clear == null || clear.length() == 0) return "";
 //        return new String(encrypt(clear.getBytes()));
         return toHex(encrypt(clear.getBytes()));
     }

@@ -1,7 +1,10 @@
 package com.example.zhouwc.utils;
 
+import android.text.TextUtils;
+
 import java.nio.ByteOrder;
 import java.security.SecureRandom;
+import java.util.Arrays;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
@@ -40,30 +43,50 @@ public class ByteUtils {
         return (byte) (b ^ (byte) (1 << index));
     }
 
-    /**
-     * @param original 原始byte数组
-     * @param tobyte   目标byte数组
-     * @param start    原始byte数组开始位置
-     * @param toStart  目标byte数组开始位置 一般为 0
-     * @param toend    目标byte 数组复制结束位置 ， 一般为 lenght
-     * @return 返回复制后的byte
-     */
-    public static byte[] ByteArrayCopy(byte[] original, byte tobyte[], int start, int toStart, int toend) {
-        System.arraycopy(original, start, tobyte, toStart, toend - toStart);
-        return tobyte;
+
+    public static String clearLiftString(String str, String clearStr) {
+        if (TextUtils.isEmpty(str) || TextUtils.isEmpty(clearStr)) return null;
+
+        byte[] bytes = str.getBytes();
+        byte[] clearStrBytes = clearStr.getBytes();
+        if (bytes.length < clearStrBytes.length) return null;
+
+        byte[] StrTitleBytes = new byte[clearStrBytes.length];
+        System.arraycopy(bytes, 0, StrTitleBytes, 0, StrTitleBytes.length);
+        byte[] newByteTmp = null;
+        if (Arrays.equals(clearStrBytes, StrTitleBytes)) {
+            newByteTmp = new byte[bytes.length - clearStrBytes.length];
+            System.arraycopy(bytes, clearStrBytes.length, newByteTmp, 0, newByteTmp.length);
+        }
+        if (newByteTmp != null) {
+            return new String(newByteTmp);
+        } else {
+            return str;
+        }
     }
 
-    /**
-     * @param original 原始byte数组
-     * @param start    原始byte数组开始位置
-     * @param toStart  目标byte数组开始位置 一般为 0
-     * @param toend    目标byte 数组复制结束位置 ， 一般为 lenght
-     * @return 返回复制后的byte
-     */
-    public static byte[] ByteArrayCopy(byte[] original, int start, int toStart, int toend) {
-        byte[] newByte = new byte[toend];
-        return ByteArrayCopy(original, newByte, start, toStart, toend);
+    public static String clearRightString(String str, String clearStr) {
+        if (TextUtils.isEmpty(str) || TextUtils.isEmpty(clearStr)) return null;
+
+        byte[] bytes = str.getBytes();
+        byte[] clearStrBytes = clearStr.getBytes();
+
+        if (bytes.length < clearStrBytes.length) return null;
+        byte[] StrTitleBytes = new byte[clearStrBytes.length];
+        //截取指定的 clearStrBytes的长度
+        System.arraycopy(bytes, bytes.length - StrTitleBytes.length, StrTitleBytes, 0, StrTitleBytes.length);
+        byte[] newByteTmp = null;
+        if (Arrays.equals(clearStrBytes, StrTitleBytes)) {  //如果是指定的字符串
+            newByteTmp = new byte[bytes.length - clearStrBytes.length];
+            System.arraycopy(bytes, 0, newByteTmp, 0, newByteTmp.length);
+        }
+        if (newByteTmp != null) {
+            return new String(newByteTmp);
+        } else {
+            return str;
+        }
     }
+
 
     public static boolean equelsByte(byte[] byte1, byte[] byte2) {
         if (byte1 == byte2) {
@@ -115,7 +138,7 @@ public class ByteUtils {
     }
 
     public static byte[] encrypt(String key, byte[] bytes) {
-        if (bytes == null || bytes.length == 0) return null;
+        if (bytes == null || bytes.length == 0) return new byte[0];
         try {
             SecretKeySpec skeySpec = new SecretKeySpec(getRawKey(key.getBytes()), AES);
             Cipher cipher = Cipher.getInstance(CBC_PKCS5_PADDING);
@@ -160,6 +183,46 @@ public class ByteUtils {
             e.printStackTrace();
             return encrypted;
         }
+    }
+
+    /**
+     * 把16进制转化为字节数组
+     */
+    public static byte[] toByte(String hexString) {
+        if (hexString == null || hexString.length() == 0)
+            return null;
+        try {
+            int len = hexString.length() / 2;
+            byte[] result = new byte[len];
+            for (int i = 0; i < len; i++)
+                result[i] = Integer.valueOf(hexString.substring(2 * i, 2 * i + 2), 16).byteValue();
+            return result;
+        } catch (Exception e) {
+            return hexString.getBytes();
+        }
+    }
+
+    /***********
+     * 对字符串进行AES加解密
+     ***************/
+    private final static String HEX = "0123456789ABCDEF";
+
+    /**
+     * 二进制转字符,转成了16进制
+     * 0123456789abcdefg
+     */
+    public static String toHex(byte[] buf) {
+        if (buf == null || buf.length == 0)
+            return "";
+        StringBuffer result = new StringBuffer(2 * buf.length);
+        for (byte aBuf : buf) {
+            appendHex(result, aBuf);
+        }
+        return result.toString();
+    }
+
+    private static void appendHex(StringBuffer sb, byte b) {
+        sb.append(HEX.charAt((b >> 4) & 0x0f)).append(HEX.charAt(b & 0x0f));
     }
 
     public static boolean testCPU() {

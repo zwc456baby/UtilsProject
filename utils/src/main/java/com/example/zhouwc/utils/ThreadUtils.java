@@ -10,6 +10,9 @@ import java.util.concurrent.Executors;
 
 /**
  * Created by zhouwenchao on 2017-04-27.
+ * 线程工具，支持post线程到主Handler中
+ * 支持 execute 子线程
+ * 支持 executeDelayed 子线程延时
  */
 public final class ThreadUtils {
     private static final ExecutorService threadCache = Executors.newCachedThreadPool();
@@ -40,6 +43,10 @@ public final class ThreadUtils {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    public static boolean isMainThread() {
+        return Thread.currentThread() == Looper.getMainLooper().getThread();
     }
 
     private ThreadUtils() {

@@ -40,6 +40,14 @@ public class ConnectManager {
         ThreadUtils.execute(tcpServer);
     }
 
+    public void startDeviceTCPServer(int port, String deviceID, DeviceSocketCallback callBack) {
+        if (tcpServer != null) {
+            throw new RuntimeException("tcp 服务器已经开启，请关闭后重试");
+        }
+        tcpServer = new TcpServer(port, deviceID, callBack);
+        ThreadUtils.execute(tcpServer);
+    }
+
     public void closeDeviceTCPServer() {
         tcpServer.closeServerSocket();
         tcpServer = null;
@@ -51,7 +59,15 @@ public class ConnectManager {
         if (deviceUdp != null) {
             throw new RuntimeException("udp 服务器已经开启，请关闭后重试");
         }
-        deviceUdp = new DeviceUdp(deviceID,context, callback);  //启动服务器端的udp服务
+        deviceUdp = new DeviceUdp(deviceID, context, callback);  //启动服务器端的udp服务
+        ThreadUtils.execute(deviceUdp);
+    }
+
+    public void startDeviceUDPServer(int port, String deviceID, Context context, DeviceUdpCallback callback) {
+        if (deviceUdp != null) {
+            throw new RuntimeException("udp 服务器已经开启，请关闭后重试");
+        }
+        deviceUdp = new DeviceUdp(port, deviceID, context, callback);  //启动服务器端的udp服务
         ThreadUtils.execute(deviceUdp);
     }
 
@@ -81,8 +97,18 @@ public class ConnectManager {
         ThreadUtils.execute(phoneUdp);
     }
 
+    public void serchDeviceList(PhoneUdp.SearchListCallBack call, int port) {
+        PhoneUdp phoneUdp = new PhoneUdp(port, call);
+        ThreadUtils.execute(phoneUdp);
+    }
+
     public void connectDevice(DeviceInfo deviceInfo, String username, String password, PhoneSocket.PhoneSocketCallBack callBack) {
         PhoneSocket phoneSocket = new PhoneSocket(deviceInfo, username, password, callBack);
+        ThreadUtils.execute(phoneSocket);
+    }
+
+    public void connectDevice(int port, DeviceInfo deviceInfo, String username, String password, PhoneSocket.PhoneSocketCallBack callBack) {
+        PhoneSocket phoneSocket = new PhoneSocket(port, deviceInfo, username, password, callBack);
         ThreadUtils.execute(phoneSocket);
     }
 

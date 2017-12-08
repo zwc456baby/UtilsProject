@@ -30,5 +30,7 @@ public class Constans {
     /*如果此时一帧长度为1M，则限制为 100条*/
     /*消息缓存列表的最大长度，一条消息最大长度为 8K ，一万条即为80MB，为防止内存溢出，限制消息列表最大长度为一万条*/
     /*限制为 100 MB*/
-    public static final int CacheMaxLength = 50 * DATA_MAX_LENGTH;
+//    public static final int CacheMaxLength = 50 * DATA_MAX_LENGTH;
+//    public static final int CacheMaxLength = 25 * DATA_MAX_LENGTH;
+    public static final int CacheMaxLength = 5 * DATA_MAX_LENGTH;
 }

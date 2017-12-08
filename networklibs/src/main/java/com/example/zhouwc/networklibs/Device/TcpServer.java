@@ -22,7 +22,16 @@ public class TcpServer extends RunnableBase {
     private DeviceSocketCallback callBack;
     private String deviceID;
 
+    private int port;
+
     public TcpServer(String deviceID, DeviceSocketCallback callBack) {
+        this.port = Constans.SDAT_SERVER_PORT;
+        this.callBack = callBack;
+        this.deviceID = deviceID;
+    }
+
+    public TcpServer(int port, String deviceID, DeviceSocketCallback callBack) {
+        this.port = port;
         this.callBack = callBack;
         this.deviceID = deviceID;
     }
@@ -74,7 +83,7 @@ public class TcpServer extends RunnableBase {
 //            server = new ServerSocket(Constans.SDAT_SERVER_PORT);   /* 用户有可能会更换 网络，导致网络端口变化，或者代理端口变化 */
             server = new ServerSocket();   /* 用户有可能会更换 网络，导致网络端口变化，或者代理端口变化 */
             server.setReuseAddress(true);
-            server.bind(new InetSocketAddress(Constans.SDAT_SERVER_PORT));
+            server.bind(new InetSocketAddress(this.port));
         } catch (IOException e) {
             e.printStackTrace();
             isExit = true;  //初始化失败则退出程序

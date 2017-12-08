@@ -43,6 +43,7 @@ public class ServiceUtil {
         return false;
     }
 
+    /*将服务设置为前台服务*/
     public static void startForeground(Service context, Class<? extends Service> classs, int NOTIFICATION_ID, Class<? extends Activity> startActivity) {
         final Class<?>[] mSetForegroundSignature = new Class[]{
                 boolean.class};

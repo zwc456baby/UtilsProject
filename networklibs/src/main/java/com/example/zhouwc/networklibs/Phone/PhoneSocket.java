@@ -36,7 +36,26 @@ public final class PhoneSocket extends SocketRunnableBase {
 
     private PhoneSocket.PhoneSocketCallBack callBack;
 
+    private int port;
+
+    public PhoneSocket(int port, DeviceInfo deviceInfo, String userName, String password, PhoneSocketCallBack callBack) {
+        this.port = port;
+        deviceinfo = deviceInfo;
+        deviceinfo.setUserName(userName);
+        connectToken = new ConnectToken();
+        connectToken.setNextToken(RandomUtil.getRandomString());
+        connectToken.setCurrentToken(connectToken.getNextToken());
+        this.Name = userName;
+        this.Password = password;
+        this.callBack = callBack;
+
+        sendRunnable = new SendRunnableImpl();
+        dealRunnable = new DealRunnable();
+        healtRunnable = new HeatRunnable();
+    }
+
     public PhoneSocket(DeviceInfo deviceInfo, String userName, String password, PhoneSocketCallBack callBack) {
+        this.port = Constans.SDAT_SERVER_PORT;
         deviceinfo = deviceInfo;
         deviceinfo.setUserName(userName);
         connectToken = new ConnectToken();
@@ -56,7 +75,7 @@ public final class PhoneSocket extends SocketRunnableBase {
         initSocketServer();
         try {
             if (!isExit) {
-                socket.connect(new InetSocketAddress(deviceinfo.getDeviceIP(), Constans.SDAT_SERVER_PORT), (int) Constans.outTime);
+                socket.connect(new InetSocketAddress(deviceinfo.getDeviceIP(), this.port), (int) Constans.outTime);
                 socket.setTcpNoDelay(true);
                 deviceinfo.setPhoneIP(socket.getLocalAddress().getHostAddress());
                 input = socket.getInputStream();

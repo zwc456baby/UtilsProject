@@ -2,6 +2,7 @@ package com.example.zhouwc.utils;
 
 import android.content.Context;
 import android.os.Environment;
+import android.support.annotation.NonNull;
 import android.text.TextUtils;
 
 import java.io.BufferedInputStream;
@@ -13,10 +14,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.LinkedList;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedOutputStream;
 import java.util.zip.ZipEntry;
@@ -122,7 +123,7 @@ public class FileUtils {
     }
 
     public synchronized void copyRawFileToPath(Context context, int resourceID, String toPath, CopyFileCallBack callBack) {
-        copyRawFileToPath(context, resourceID, toPath, callBack);
+        copyRawFileToPath(context, resourceID, new File(toPath), callBack);
     }
 
     public synchronized void copyRawFileToPath(Context context, int resourceID, File toFile, CopyFileCallBack callBack) {
@@ -155,7 +156,7 @@ public class FileUtils {
      * @param srcPathName  资源路径
      * @param SavaFilePath 保存路径
      */
-    public void createZipFiles(String srcPathName, String SavaFilePath, CreteZipFileCallBack callBack) {
+    public void createZipFiles(String srcPathName, String SavaFilePath, CreateZipFileCallBack callBack) {
         if (hasFilePermmiss(srcPathName)) {  // 有读写文件夹权限
             ThreadUtils.execute(new CreateZipFileRunnable(clearStr(srcPathName, File.separator), SavaFilePath, callBack));
         } else {
@@ -187,6 +188,9 @@ public class FileUtils {
         private UnZipFileCallBack callBack;
         private String errorTag = "";
 
+        private boolean isExit = false;
+        private long progress = 0;
+
         private unZipFileRunnable(File zipfile, String descDir, UnZipFileCallBack callBack) {
             this.descDir = descDir;
             this.zipfile = zipfile;
@@ -196,6 +200,7 @@ public class FileUtils {
         @Override
         public void run() {
             try {
+                isExit = false;
 //                String toPath = descDir + File.separator + zipfile.getName();
                 if (FileExist(descDir)) {
                     if (isFile(descDir)) {   //如果传入的目标目录不是文件夹,则跳出
@@ -212,6 +217,7 @@ public class FileUtils {
                     errorTag = apendError(errorTag, error1);
                     return;
                 }
+                ThreadUtils.execute(new notifyRunnable(getFileOrDirLenght(zipfile), callBack));
                 ZipFile zf = new ZipFile(zipfile);  //设置解压编码
                 for (Enumeration entries = zf.entries(); entries
                         .hasMoreElements(); ) {
@@ -230,25 +236,51 @@ public class FileUtils {
                         FileOutputStream out1 = new FileOutputStream(fileOut);
                         BufferedOutputStream bos = new BufferedOutputStream(
                                 out1);
-                        int b;
-                        while ((b = in.read()) != -1) {
-                            bos.write(b);
+                        int length;
+                        byte buffer[] = new byte[8192];
+                        while ((length = in.read(buffer)) != -1) {
+                            bos.write(buffer, 0, length);
+                            progress += length;
                         }
                         //关闭文件流
+                        bos.flush();
                         bos.close();
                         out1.close();
                     }
                     in.close(); //关闭文件流
                 }
                 zf.close();//关闭文件流
-                return;
             } catch (IOException e) {
                 errorTag = apendError(errorTag, error4);
             } catch (Exception e) {
                 errorTag = apendError(errorTag, error0);
             } finally {
+                isExit = true;
                 if (callBack != null) {
-                    callBack.UnZipFileOver(true, errorTag);
+                    callBack.UnZipFileOver(TextUtils.isEmpty(errorTag), errorTag);
+                }
+            }
+        }
+
+        class notifyRunnable implements Runnable {
+            private UnZipFileCallBack callBack;
+            private long aLong;
+
+            private notifyRunnable(long length, UnZipFileCallBack callBack) {
+                this.aLong = length;
+                this.callBack = callBack;
+            }
+
+
+            @Override
+            public void run() {
+                while (!isExit) {
+                    if (callBack != null) callBack.unzipProgress(progress, aLong);
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
@@ -257,10 +289,13 @@ public class FileUtils {
     class CreateZipFileRunnable implements Runnable {
         private String SavaFilePath;
         private String srcPathName;
-        private CreteZipFileCallBack callBack;
+        private CreateZipFileCallBack callBack;
         private String errorTag = "";
 
-        private CreateZipFileRunnable(String srcPathName, String SavaFilePath, CreteZipFileCallBack callBack) {
+        private boolean isExit = false;
+        private long progress = 0;
+
+        private CreateZipFileRunnable(String srcPathName, String SavaFilePath, CreateZipFileCallBack callBack) {
             this.srcPathName = srcPathName;
             this.SavaFilePath = SavaFilePath;
             this.callBack = callBack;
@@ -268,19 +303,22 @@ public class FileUtils {
 
         @Override
         public void run() {
+            isExit = false;
             File zipFile = new File(SavaFilePath);
             try {
                 if (!FileExist(srcPathName)) {  //如果资源文件不存在
                     errorTag = apendError(errorTag, error1);
                     return;
                 }
+                ThreadUtils.execute(new notifyRunnable(getFileOrDirLenght(srcPathName), callBack));
                 compress(zipFile, srcPathName);
             } catch (Exception e) {
                 errorTag = apendError(errorTag, error1);
 //                e.printStackTrace();
             } finally {
+                isExit = true;
                 if (callBack != null)
-                    callBack.CreateOver(true, errorTag);
+                    callBack.CreateOver(TextUtils.isEmpty(errorTag), errorTag);
             }
         }
 
@@ -347,10 +385,34 @@ public class FileUtils {
                 byte data[] = new byte[8192];
                 while ((count = bis.read(data)) != -1) {
                     out.write(data, 0, count);
+                    progress += count;
                 }
                 bis.close();
             } catch (IOException e) {
                 errorTag = apendError(errorTag, error4);
+            }
+        }
+
+        class notifyRunnable implements Runnable {
+            private CreateZipFileCallBack callBack;
+            private long aLong;
+
+            private notifyRunnable(long length, CreateZipFileCallBack callBack) {
+                this.aLong = length;
+                this.callBack = callBack;
+            }
+
+
+            @Override
+            public void run() {
+                while (!isExit) {
+                    if (callBack != null) callBack.createProgress(progress, aLong);
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
         }
     }
@@ -444,6 +506,35 @@ public class FileUtils {
         return lenght;
     }
 
+    public ArrayList<String> getAllFiles(String path) {
+        return getFiles(path, new ArrayList<String>());
+    }
+
+    /**
+     * 返回文件夹下文件目录，如果是文件，返回空
+     *
+     * @param filepath
+     * @return
+     */
+    private ArrayList<String> getFiles(String filepath, @NonNull ArrayList<String> arrayList) {
+        if (TextUtils.isEmpty(filepath)) {
+            return null;
+        }
+        File f = new File(filepath);
+        if (f.exists() && f.isDirectory()) {  //如果文件路径存在，且是文件夹
+            File[] files = f.listFiles();  //获得文件夹下所有文件列表
+            if (files != null) {    //如果列表不为空
+                for (File file : files) {
+                    getFiles(file.getAbsolutePath(), arrayList);
+//                    arrayList.add(file.getAbsolutePath());
+                }
+            }
+        } else if (f.exists() && f.isFile()) {
+            arrayList.add(filepath);
+        }
+        return arrayList;
+    }
+
     class CopyResourceRunnable implements Runnable {
         Context context;
         int resourID;
@@ -481,7 +572,7 @@ public class FileUtils {
             System.gc();
             notify = false;
             if (callBack != null) {
-                callBack.CopyOver(true, errorTag);
+                callBack.CopyOver(TextUtils.isEmpty(errorTag), errorTag);
             }
         }
 
@@ -609,7 +700,7 @@ public class FileUtils {
                 System.gc();  //手动调用一次，因为有可能读写文件后，因为占用文件导致文件无法访问。
                 notify = false;
                 if (callBack != null) {
-                    callBack.CopyOver(true, errorTag);
+                    callBack.CopyOver(TextUtils.isEmpty(errorTag), errorTag);
                 }
                 errorTag = "";
             }
@@ -862,6 +953,92 @@ public class FileUtils {
         }
     }
 
+    public boolean deleteTimeOldFile(String path, long time) {
+        File dirOrFile = new File(path);
+        if (dirOrFile.exists() && dirOrFile.isDirectory()) {
+            File[] files = dirOrFile.listFiles();
+            if (files == null || files.length == 0) {
+                return false;
+            }
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    deleteTimeOldFile(file.getAbsolutePath(), time);
+//                    FileUtils.instans().deleteDirFileSafely(file);
+                } else if (file.isFile() && file.lastModified() < System.currentTimeMillis() - time) {
+                    FileUtils.instans().deleteDirFileSafely(file);
+                }
+            }
+            return true;
+        } else if (dirOrFile.exists() && dirOrFile.isFile()) {
+            if (dirOrFile.lastModified() < System.currentTimeMillis() - time) {
+                return FileUtils.instans().deleteDirFileSafely(dirOrFile);
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    public boolean deleteSizeOldFile(String path, long allFileSize) {
+        long currentSize = getFileOrDirLenght(path);
+        ArrayList<String> arrayList = getAllFiles(path);
+        if (currentSize <= allFileSize) return false;
+        if (arrayList == null || arrayList.size() == 0) return false;
+
+        while (currentSize > allFileSize) {
+            if (arrayList.size() <= 0) break;
+            String oldFile = getListTimeOldPath(arrayList);
+            arrayList.remove(oldFile);
+            File file = new File(oldFile);
+            if (file.exists()) {
+                long length = file.length();
+                deleteDirFileSafely(file);
+                currentSize -= length;
+            }
+        }
+        return true;
+    }
+
+    public boolean deleteCountOutFile(String path, int count) {
+        ArrayList<String> arrayList = getAllFiles(path);
+        if (arrayList == null || arrayList.size() <= count) return false;
+
+        while (arrayList.size() > count) {
+            if (arrayList.size() <= 0) break;
+            String oldFile = getListTimeOldPath(arrayList);
+            arrayList.remove(oldFile);
+            File file = new File(oldFile);
+            if (file.exists()) {
+                deleteDirFileSafely(file);
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 获取整个list中，时间最早的文件路径
+     *
+     * @return
+     */
+    public String getListTimeOldPath(ArrayList<String> arrayList) {
+        long time = -1;
+        String path = null;
+        for (String str : arrayList) {
+            File file = new File(str);
+            if (file.isFile()) {
+                if (time == -1) {
+                    time = file.lastModified();
+                    path = file.getAbsolutePath();
+                } else if (file.lastModified() < time) {
+                    time = file.lastModified();
+                    path = file.getAbsolutePath();
+                }
+            }
+        }
+        return path;
+    }
+
 
     /**
      * @param file 要删除的文件
@@ -902,11 +1079,15 @@ public class FileUtils {
         void CopyOver(boolean over, String error);
     }
 
-    public interface CreteZipFileCallBack {
+    public interface CreateZipFileCallBack {
+        void createProgress(long progress, long fileLenght);
+
         void CreateOver(boolean over, String error);
     }
 
     public interface UnZipFileCallBack {
+        void unzipProgress(long progress, long fileLenght);
+
         void UnZipFileOver(boolean over, String error);
     }
 }
