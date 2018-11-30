@@ -1,4 +1,4 @@
-package com.example.zhouwc.utils;
+package com.example.qqhideimgcreate.Utils;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -199,10 +199,6 @@ public class ImageUtil {
     /**
      * 按照比例缩放 bitmap
      *
-     * @param origin
-     * @param newWidth
-     * @param newHeight
-     * @return
      */
     public static Bitmap proportionScaleBitmap(Bitmap origin, int newWidth, int newHeight) {
         if (origin == null) {
@@ -251,8 +247,6 @@ public class ImageUtil {
     /**
      * 根据ImageView获得适当的压缩的宽和高
      *
-     * @param imageView
-     * @return
      */
     public static ImageSize getImageViewWidth(View imageView) {
         if (imageView == null) return null;
@@ -303,9 +297,6 @@ public class ImageUtil {
     /**
      * 反射获得ImageView设置的最大宽度和高度
      *
-     * @param object
-     * @param fieldName
-     * @return
      */
     private static int getImageViewFieldValue(Object object, String fieldName) {
         int value = 0;
@@ -316,7 +307,7 @@ public class ImageUtil {
             if (fieldValue > 0 && fieldValue < Integer.MAX_VALUE) {
                 value = fieldValue;
             }
-        } catch (Exception e) {
+        } catch (Exception ignore) {
         }
         return value;
     }
@@ -376,98 +367,9 @@ public class ImageUtil {
         //draw fg into
         cv.drawBitmap(foreground, startX, startY, null);//在 0，0坐标开始画入fg ，可以从任意位置画入
         //save all clip
-        cv.save(Canvas.ALL_SAVE_FLAG);//保存
+        cv.save();//保存
         //store
         cv.restore();//存储
         return newbmp;
-    }
-
-    private static PoolLoadImageRunnable runnable = null;
-
-    public static void LoadImage(String path, Object view, LoadImageImpl impl) {
-        synchronized (PoolLoadImageRunnable.class) {
-            if (runnable == null) {
-                ThreadUtils.execute(runnable = new PoolLoadImageRunnable());
-            } else {
-                runnable.addImageLoadEntity(new LoadImgEntity(path, view, impl));
-            }
-        }
-    }
-
-    private static final class PoolLoadImageRunnable implements Runnable {
-        private boolean isExit = false;
-        private LinkedList<LoadImgEntity> mTasks = new LinkedList<>();
-
-        private void clear() {
-            runnable = null;
-            isExit = true;
-            mTasks.clear();
-            mTasks = null;
-        }
-
-        private void addImageLoadEntity(LoadImgEntity entity) {
-            if (isExit) return;
-            synchronized (PoolLoadImageRunnable.class) {
-                mTasks.addLast(entity);
-            }
-        }
-
-        @Override
-        public void run() {
-            while (!isExit) {
-                if (mTasks == null) return;
-                if (mTasks.size() == 0) {
-                    ThreadUtils.sleep(100);
-                    synchronized (PoolLoadImageRunnable.class) {
-                        if (mTasks.size() == 0) {
-                            clear();
-                            return;
-                        }
-                    }
-                } else {
-                    try {
-                        final LoadImgEntity loadImgEntity = mTasks.removeFirst();
-                        if (loadImgEntity != null) {
-                            final Bitmap bitmap = loadImgEntity.loadImageImpl.getBitmap(loadImgEntity.path, loadImgEntity.imageView);
-                            ThreadUtils.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    loadImgEntity.loadImageImpl.Load(loadImgEntity.imageView, loadImgEntity.path, bitmap);
-                                }
-                            });
-
-                        }
-                    } catch (Exception e) {
-                    }
-                }
-            }
-        }
-    }
-
-//    private static Runnable getPoolLoadImageRunnable() {
-//        return new Runnable() {
-//            @Override
-//            public void run() {
-//
-//            }
-//        };
-//    }
-
-    private static class LoadImgEntity {
-        private LoadImgEntity(String path, Object imageView, LoadImageImpl impl) {
-            this.path = path;
-            this.imageView = imageView;
-            this.loadImageImpl = impl;
-        }
-
-        String path;
-        Object imageView;
-        LoadImageImpl loadImageImpl;
-    }
-
-    public interface LoadImageImpl {
-        Bitmap getBitmap(String path, Object view);
-
-        void Load(Object view, String path, Bitmap bitmap);
     }
 }
