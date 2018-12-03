@@ -128,27 +128,7 @@ public class ImageUtil {
     }
 
     public static Bitmap getBitmap(String path) {
-        return getBitmap(path, 1920, 1920);
-
-//        // 第一次解析将inJustDecodeBounds设置为true，来获取图片大小
-//        final BitmapFactory.Options options = new BitmapFactory.Options();
-//        options.inJustDecodeBounds = true;
-//        BitmapFactory.decodeFile(path, options);
-//
-//        ImageSize imageSize = new ImageSize();
-//        float heightSample = ArithUtil.div(1920, options.outHeight);
-//        float widthSample = ArithUtil.div(1920, options.outWidth);
-//        if (heightSample < 1 || widthSample < 1) {
-//            float sampleSize = heightSample > widthSample ? widthSample : heightSample;
-//            imageSize.width = Math.round(ArithUtil.mul(options.outWidth, sampleSize));
-//            imageSize.height = Math.round(ArithUtil.mul(options.outHeight, sampleSize));
-//        } else {
-//            imageSize.width = options.outWidth;
-//            imageSize.height = options.outHeight;
-//        }
-//        options.inSampleSize = calculateInSampleSize(options, imageSize.width, imageSize.height);
-//        options.inJustDecodeBounds = false;
-//        return BitmapFactory.decodeFile(path, options);
+        return BitmapFactory.decodeFile(path);
     }
 
     /**
@@ -248,7 +228,7 @@ public class ImageUtil {
      * 根据ImageView获得适当的压缩的宽和高
      *
      */
-    public static ImageSize getImageViewWidth(View imageView) {
+    private static ImageSize getImageViewWidth(View imageView) {
         if (imageView == null) return null;
         ImageSize imageSize = new ImageSize();
         final DisplayMetrics displayMetrics = imageView.getContext()
